@@ -34,7 +34,7 @@ function App() {
 
   // Innlogget men data ikke lastet enda
   if (loading || !state) {
-    return <LoadingScreen/>;
+    return <LoadingScreen error={authError} onLogout={logout}/>;
   }
 
   const navigate = (page, params={}) => setRoute({ page, params });

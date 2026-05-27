@@ -189,19 +189,37 @@ function notatToDb(n) {
 }
 
 // ── Last all data fra alle tabeller ──────────────────────────
-async function loadAllData() {
-  const [pakkerR, teamR, kunderR, tilbudR, notaterR, innstR] = await Promise.all([
-    supa.from('pakker').select('*'),
-    supa.from('team_members').select('*'),
-    supa.from('kunder').select('*'),
-    supa.from('tilbud').select('*'),
-    supa.from('interne_notater').select('*'),
-    supa.from('innstillinger').select('*'),
+// Med timeout og bedre feilmelding (hvilken tabell feilet)
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout (${ms/1000}s) på ${label}`)), ms)),
   ]);
+}
 
-  const anyErr = [pakkerR, teamR, kunderR, tilbudR, notaterR, innstR].find(r => r.error);
-  if (anyErr) throw new Error(anyErr.error.message);
+async function loadAllData() {
+  const QUERY_TIMEOUT = 12000; // 12 sek per query
+  const tables = [
+    ['pakker',          'pakker'],
+    ['team_members',    'team'],
+    ['kunder',          'kunder'],
+    ['tilbud',          'tilbud'],
+    ['interne_notater', 'interne notater'],
+    ['innstillinger',   'innstillinger'],
+  ];
 
+  const results = await Promise.all(tables.map(([t, label]) =>
+    withTimeout(supa.from(t).select('*'), QUERY_TIMEOUT, label)
+  ));
+
+  // Sjekk feil per tabell og gi en spesifikk melding
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].error) {
+      throw new Error(`${tables[i][1]}: ${results[i].error.message}`);
+    }
+  }
+
+  const [pakkerR, teamR, kunderR, tilbudR, notaterR, innstR] = results;
   const innstByKey = Object.fromEntries((innstR.data || []).map(r => [r.key, r.value]));
   return {
     selskap:        innstByKey.selskap || {},
@@ -213,6 +231,18 @@ async function loadAllData() {
     tilbud:         (tilbudR.data || []).map(tilbudFromDb),
     interneNotater: (notaterR.data || []).map(notatFromDb),
   };
+}
+
+// Forsøk loadAllData på nytt automatisk én gang ved nettverksfeil
+async function loadAllDataWithRetry() {
+  try {
+    return await loadAllData();
+  } catch (e) {
+    console.warn('[loadAllData] første forsøk feilet, prøver igjen:', e.message);
+    // Vent litt før retry — gir cold start tid til å våkne
+    await new Promise(r => setTimeout(r, 1500));
+    return await loadAllData();
+  }
 }
 
 // ── Diff og persistering ──────────────────────────────────────
@@ -289,18 +319,22 @@ function useStore() {
   // 1. Init: hent eksisterende session
   useEffect(() => {
     let active = true;
-    supa.auth.getSession().then(({ data, error }) => {
+    // Timeout på getSession (5 sek) — hvis Supabase-auth henger, gi opp og vis login
+    withTimeout(supa.auth.getSession(), 5000, 'auth.getSession').then(({ data, error }) => {
       if (!active) return;
       if (error) console.error('[auth.getSession]', error);
       setSession(data?.session || null);
       if (data?.session) {
-        loadAllData()
+        loadAllDataWithRetry()
           .then(s => { if (active) { setStateRaw(s); prevStateRef.current = s; } })
           .catch(e => { console.error('[loadAllData]', e); setAuthErr('Kunne ikke laste data: ' + e.message); })
           .finally(() => { if (active) setLoading(false); });
       } else {
         setLoading(false);
       }
+    }).catch(e => {
+      console.error('[auth.getSession timeout]', e);
+      if (active) { setAuthErr('Supabase svarer ikke: ' + e.message); setLoading(false); }
     });
 
     // 2. Lytt på auth-endringer
@@ -310,7 +344,7 @@ function useStore() {
       if (event === 'SIGNED_IN' && sess) {
         setLoading(true);
         try {
-          const s = await loadAllData();
+          const s = await loadAllDataWithRetry();
           setStateRaw(s); prevStateRef.current = s;
         } catch (e) {
           console.error('[loadAllData on SIGNED_IN]', e);
@@ -412,16 +446,83 @@ function LoginScreen({ onLogin, error }) {
 }
 
 // ── LoadingScreen ────────────────────────────────────────────
-function LoadingScreen() {
+function LoadingScreen({ error, onLogout }) {
+  // Hvis lasting har tatt > 8 sek uten feil, vis en hint-melding
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (error) return;
+    const t = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   return (
     <div style={{
       minHeight:'100vh', width:'100vw',
       display:'flex', alignItems:'center', justifyContent:'center',
-      background: C.navy, color:'#fff',
+      background: C.navy, color:'#fff', padding:20,
     }}>
-      <div style={{textAlign:'center'}}>
+      <div style={{textAlign:'center', maxWidth:480}}>
         <img src="assets/Ressurs_R_hvit.png" alt="Ressurs" style={{height:56, width:'auto', marginBottom:18, opacity:0.9}}/>
-        <div style={{fontSize:13, color:'rgba(255,255,255,0.6)', letterSpacing:'.05em'}}>Laster…</div>
+        {error ? (
+          <>
+            <div style={{fontSize:15, fontWeight:600, color:'#fff', marginBottom:8}}>
+              Klarte ikke å laste data
+            </div>
+            <div style={{
+              fontSize:13, color:'#fff', background:'rgba(210,54,51,0.18)',
+              border:'1px solid rgba(210,54,51,0.45)', borderRadius:8,
+              padding:'12px 14px', marginBottom:18, lineHeight:1.5,
+              textAlign:'left', wordBreak:'break-word',
+            }}>
+              {error}
+            </div>
+            <div style={{fontSize:12, color:'rgba(255,255,255,0.6)', lineHeight:1.6, marginBottom:18}}>
+              Sjekk at Supabase-prosjektet er aktivt (gratisplanen pauser etter ~1 uke uten aktivitet), at API-nøkkelen fortsatt er gyldig, og at du har nett.
+            </div>
+            <div style={{display:'flex', gap:10, justifyContent:'center'}}>
+              <button onClick={() => location.reload()} style={{
+                background:'#fff', color:C.navy, border:'none', borderRadius:6,
+                padding:'9px 18px', fontSize:13, fontWeight:600, cursor:'pointer',
+                fontFamily:'inherit',
+              }}>Prøv på nytt</button>
+              {onLogout && (
+                <button onClick={onLogout} style={{
+                  background:'transparent', color:'#fff',
+                  border:'1px solid rgba(255,255,255,0.3)', borderRadius:6,
+                  padding:'9px 18px', fontSize:13, fontWeight:500, cursor:'pointer',
+                  fontFamily:'inherit',
+                }}>Logg ut</button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{fontSize:13, color:'rgba(255,255,255,0.6)', letterSpacing:'.05em'}}>Laster…</div>
+            {slow && (
+              <div style={{
+                marginTop:18, fontSize:12, color:'rgba(255,255,255,0.5)',
+                lineHeight:1.6, maxWidth:360,
+              }}>
+                Dette tar lengre tid enn vanlig. Hvis det henger, kan Supabase-prosjektet være satt på pause —{' '}
+                <button onClick={() => location.reload()} style={{
+                  background:'none', border:'none', color:'#fff',
+                  textDecoration:'underline', cursor:'pointer', padding:0,
+                  fontFamily:'inherit', fontSize:12,
+                }}>last på nytt</button>
+                {onLogout && (
+                  <>
+                    {' '}eller{' '}
+                    <button onClick={onLogout} style={{
+                      background:'none', border:'none', color:'#fff',
+                      textDecoration:'underline', cursor:'pointer', padding:0,
+                      fontFamily:'inherit', fontSize:12,
+                    }}>logg ut</button>
+                  </>
+                )}.
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
