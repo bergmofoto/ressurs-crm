@@ -245,6 +245,43 @@ async function loadAllDataWithRetry() {
   }
 }
 
+// ── Lokal cache av state ────────────────────────────────────
+// Lagres i localStorage så appen kan vise data umiddelbart ved oppstart,
+// selv om Supabase er treg eller utilgjengelig. Knyttet til e-post slik at
+// to brukere på samme maskin ikke ser hverandres cache.
+const CACHE_PREFIX = 'ressurs_state_cache_v1::';
+
+function cacheKey(email) {
+  return CACHE_PREFIX + (email || 'anon').toLowerCase();
+}
+function loadCache(email) {
+  try {
+    const raw = localStorage.getItem(cacheKey(email));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.pakker)) return null; // sanity
+    return parsed;
+  } catch (e) { return null; }
+}
+function saveCache(email, state) {
+  if (!state) return;
+  try {
+    localStorage.setItem(cacheKey(email), JSON.stringify(state));
+  } catch (e) {
+    // quota? prøv å rydde gamle nøkler
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CACHE_PREFIX) && k !== cacheKey(email)) localStorage.removeItem(k);
+      }
+      localStorage.setItem(cacheKey(email), JSON.stringify(state));
+    } catch (e2) { /* gir opp stille */ }
+  }
+}
+function clearCache(email) {
+  try { localStorage.removeItem(cacheKey(email)); } catch(e) {}
+}
+
 // ── Diff og persistering ──────────────────────────────────────
 // Sammenligner gammelt og nytt state, og fyrer av upsert/delete for hver endring.
 
@@ -314,7 +351,41 @@ function useStore() {
   const [loading, setLoading]   = useState(true);
   const [authError, setAuthErr] = useState('');
   const [persistErr, setPersistErr] = useState('');
+  const [refreshErr, setRefreshErr] = useState(''); // Bakgrunnsoppdatering feilet — men cache vises
   const prevStateRef = useRef(null);
+  const sessionEmailRef = useRef('');
+
+  // Hjelpefunksjon: hydrer fra cache + refresh i bakgrunn
+  const hydrateAndRefresh = useCallback(async (email) => {
+    sessionEmailRef.current = email;
+    const cached = loadCache(email);
+    if (cached) {
+      // Vis appen umiddelbart fra cache
+      setStateRaw(cached);
+      prevStateRef.current = cached;
+      setLoading(false);
+    }
+    // Hent ferske data i bakgrunnen (eller blokkerende hvis ingen cache)
+    try {
+      const s = await loadAllDataWithRetry();
+      setStateRaw(s);
+      prevStateRef.current = s;
+      saveCache(email, s);
+      setRefreshErr('');
+      setAuthErr('');
+    } catch (e) {
+      console.error('[loadAllData]', e);
+      if (cached) {
+        // Ikke-blokkerende: brukeren jobber videre med cache
+        setRefreshErr('Klarte ikke å oppdatere fra server: ' + e.message);
+      } else {
+        // Ingen cache — vis full feilmelding
+        setAuthErr('Kunne ikke laste data: ' + e.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // 1. Init: hent eksisterende session
   useEffect(() => {
@@ -325,10 +396,7 @@ function useStore() {
       if (error) console.error('[auth.getSession]', error);
       setSession(data?.session || null);
       if (data?.session) {
-        loadAllDataWithRetry()
-          .then(s => { if (active) { setStateRaw(s); prevStateRef.current = s; } })
-          .catch(e => { console.error('[loadAllData]', e); setAuthErr('Kunne ikke laste data: ' + e.message); })
-          .finally(() => { if (active) setLoading(false); });
+        hydrateAndRefresh(data.session.user?.email || '');
       } else {
         setLoading(false);
       }
@@ -343,29 +411,44 @@ function useStore() {
       setSession(sess);
       if (event === 'SIGNED_IN' && sess) {
         setLoading(true);
-        try {
-          const s = await loadAllDataWithRetry();
-          setStateRaw(s); prevStateRef.current = s;
-        } catch (e) {
-          console.error('[loadAllData on SIGNED_IN]', e);
-          setAuthErr('Kunne ikke laste data: ' + e.message);
-        } finally { setLoading(false); }
+        await hydrateAndRefresh(sess.user?.email || '');
       } else if (event === 'SIGNED_OUT') {
+        const email = sessionEmailRef.current;
+        if (email) clearCache(email);
+        sessionEmailRef.current = '';
         setStateRaw(null);
         prevStateRef.current = null;
+        setRefreshErr('');
       }
     });
 
     window.__onPersistError = (msg) => setPersistErr(msg);
     return () => { active = false; sub.subscription.unsubscribe(); };
+  }, [hydrateAndRefresh]);
+
+  // Manuell refresh — brukes av banneret når bakgrunnsoppdatering har feilet
+  const refresh = useCallback(async () => {
+    const email = sessionEmailRef.current;
+    if (!email) return;
+    setRefreshErr('');
+    try {
+      const s = await loadAllDataWithRetry();
+      setStateRaw(s);
+      prevStateRef.current = s;
+      saveCache(email, s);
+    } catch (e) {
+      setRefreshErr('Klarte ikke å oppdatere fra server: ' + e.message);
+    }
   }, []);
 
-  // Wrapper rundt setState som også persisterer
+  // Wrapper rundt setState som også persisterer og oppdaterer cache
   const setState = useCallback((updater) => {
     setStateRaw(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       // Fire-and-forget persistering
       persistDiffs(prevStateRef.current, next).catch(e => console.error('[persistDiffs]', e));
+      // Lokal cache holdes alltid i sync med UI-state
+      if (sessionEmailRef.current) saveCache(sessionEmailRef.current, next);
       prevStateRef.current = next;
       return next;
     });
@@ -382,7 +465,7 @@ function useStore() {
     await supa.auth.signOut();
   }, []);
 
-  return { state, setState, session, loading, login, logout, authError, persistErr, clearPersistErr: () => setPersistErr('') };
+  return { state, setState, session, loading, login, logout, authError, persistErr, refreshErr, refresh, clearPersistErr: () => setPersistErr('') };
 }
 
 // resetStore brukes ikke i Supabase-versjonen — funksjonen erstattes av Sign Out.

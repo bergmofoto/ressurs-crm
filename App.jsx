@@ -12,7 +12,7 @@ const NAV = [
 ];
 
 function App() {
-  const { state, setState, session, loading, login, logout, authError, persistErr, clearPersistErr } = useStore();
+  const { state, setState, session, loading, login, logout, authError, persistErr, refreshErr, refresh, clearPersistErr } = useStore();
 
   // Routing: { page, params }
   const [route, setRoute] = useState(() => {
@@ -88,6 +88,24 @@ function App() {
           <Icon name="alert-circle" size={16}/>
           <div style={{flex:1}}><strong>Lagring feilet:</strong> {persistErr}</div>
           <button onClick={clearPersistErr} style={{background:'none', border:'none', cursor:'pointer', color:C.red, padding:4}}><Icon name="x" size={14}/></button>
+        </div>
+      )}
+      {refreshErr && (
+        <div style={{
+          position:'fixed', bottom: persistErr ? 80 : 20, right:20, zIndex:9998,
+          background:'#fef4e3', color:'#8a5410', padding:'12px 16px', borderRadius:8,
+          fontSize:13, maxWidth:380, boxShadow:'0 4px 12px rgba(0,0,0,0.15)',
+          display:'flex', alignItems:'center', gap:10,
+        }}>
+          <Icon name="cloud-off" size={16}/>
+          <div style={{flex:1}}>
+            <strong>Frakoblet:</strong> Viser sist lagrede data. Endringer lagres når tilkoblingen er tilbake.
+          </div>
+          <button onClick={refresh} title="Prøv på nytt" style={{
+            background:C.amber, color:'#fff', border:'none', cursor:'pointer',
+            padding:'5px 10px', borderRadius:5, fontSize:12, fontWeight:600,
+            fontFamily:'inherit',
+          }}>Prøv igjen</button>
         </div>
       )}
     </div>
