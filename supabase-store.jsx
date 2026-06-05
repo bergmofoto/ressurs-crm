@@ -407,8 +407,11 @@ function useStore() {
   const [authError, setAuthErr] = useState('');
   const [persistErr, setPersistErr] = useState('');
   const [refreshErr, setRefreshErr] = useState(''); // Bakgrunnsoppdatering feilet — men cache vises
+  const [live, setLive] = useState(false);          // Sanntid tilkoblet?
+  const [lastSync, setLastSync] = useState(null);   // Tidspunkt for siste vellykkede henting
   const prevStateRef = useRef(null);
   const sessionEmailRef = useRef('');
+  const refreshingRef = useRef(false);              // Hindrer overlappende bakgrunnshentinger
 
   // Hjelpefunksjon: hydrer fra cache + refresh i bakgrunn
   const hydrateAndRefresh = useCallback(async (email) => {
@@ -426,6 +429,7 @@ function useStore() {
       setStateRaw(s);
       prevStateRef.current = s;
       saveCache(email, s);
+      setLastSync(Date.now());
       if (failedTables.length > 0) {
         setRefreshErr('Noen tabeller kunne ikke oppdateres: ' + failedTables.join(', ') + '. Viser sist kjente data for disse.');
       } else {
@@ -531,6 +535,7 @@ function useStore() {
       setStateRaw(s);
       prevStateRef.current = s;
       saveCache(email, s);
+      setLastSync(Date.now());
       if (failedTables.length > 0) {
         setRefreshErr('Noen tabeller kunne ikke oppdateres: ' + failedTables.join(', '));
       }
@@ -538,6 +543,65 @@ function useStore() {
       setRefreshErr('Klarte ikke å oppdatere fra server: ' + e.message);
     }
   }, []);
+
+  // Stille bakgrunnsoppdatering — brukes av sanntid + når man kommer tilbake til fanen.
+  // Bytter IKKE på laste-skjermen og viser ingen feil hvis den mislykkes (vi prøver igjen).
+  const silentRefresh = useCallback(async () => {
+    const email = sessionEmailRef.current;
+    if (!email || refreshingRef.current) return;
+    refreshingRef.current = true;
+    try {
+      const { state: s, failedTables } = await loadAllData(prevStateRef.current);
+      setStateRaw(s);
+      prevStateRef.current = s;
+      saveCache(email, s);
+      setLastSync(Date.now());
+      if (failedTables.length === 0) setRefreshErr('');
+    } catch (e) {
+      console.warn('[silentRefresh]', e.message);
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, []);
+
+  // 3. Sanntid: abonner på databaseendringer og oppdater i bakgrunnen.
+  // Når noen i teamet lagrer noe, henter alle andre de ferske dataene automatisk.
+  useEffect(() => {
+    if (!session) return;
+    let timer = null;
+    // Debounce: samle flere endringer (f.eks. en lagring som rører flere rader)
+    // til én henting.
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => silentRefresh(), 700);
+    };
+
+    const channel = supa
+      .channel('ressurs-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, schedule)
+      .subscribe((status) => {
+        setLive(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      clearTimeout(timer);
+      supa.removeChannel(channel);
+      setLive(false);
+    };
+  }, [session, silentRefresh]);
+
+  // 4. Når brukeren kommer tilbake til fanen (eller nett er tilbake): hent ferske data.
+  useEffect(() => {
+    if (!session) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') silentRefresh(); };
+    const onOnline = () => silentRefresh();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [session, silentRefresh]);
 
   // Wrapper rundt setState som også persisterer og oppdaterer cache
   const setState = useCallback((updater) => {
@@ -563,7 +627,7 @@ function useStore() {
     await supa.auth.signOut();
   }, []);
 
-  return { state, setState, session, loading, login, logout, authError, persistErr, refreshErr, refresh, clearPersistErr: () => setPersistErr('') };
+  return { state, setState, session, loading, login, logout, authError, persistErr, refreshErr, refresh, silentRefresh, live, lastSync, clearPersistErr: () => setPersistErr('') };
 }
 
 // resetStore brukes ikke i Supabase-versjonen — funksjonen erstattes av Sign Out.
