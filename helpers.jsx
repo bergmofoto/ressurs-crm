@@ -14,8 +14,22 @@ const C = {
   teal: '#0c8a8a', tealBg: '#e0f5f3', purple: '#7c4dff', purpleBg: '#efeafd',
 };
 
-// Today (fixed reference date for the demo)
-const TODAY = '2026-05-21';
+// Dagens dato — beregnes fra systemklokka (lokal tid).
+// (Var tidligere en fast demo-dato; nå dynamisk for produksjon.)
+function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), da = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${da}`;
+}
+const TODAY = todayISO();
+
+// Norske ukedager (man=0 … søn=6 er ikke standard her — vi bruker getDay(): søn=0)
+const UKEDAGER = ['Søndag','Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag'];
+function weekdayName(iso) {
+  const d = parseISO(iso);
+  if (!d) return '';
+  return UKEDAGER[d.getDay()];
+}
 
 // ── Norwegian number / date formatters ───────────────────────
 function formatKr(n) {

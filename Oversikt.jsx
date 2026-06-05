@@ -82,7 +82,7 @@ function Oversikt({ state, navigate }) {
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24}}>
         <div>
           <h1 style={{fontSize:28, fontWeight:700, color:C.navy, letterSpacing:'-0.01em', margin:0}}>Oversikt</h1>
-          <p style={{fontSize:14, color:C.gray500, marginTop:4, margin:0}}>Torsdag {formatDateLong(TODAY)}</p>
+          <p style={{fontSize:14, color:C.gray500, marginTop:4, margin:0}}>{weekdayName(TODAY)} {formatDateLong(TODAY)}</p>
         </div>
         <Button icon="user-plus" variant="primary" onClick={() => navigate('kunder', { newCustomer: true })}>Ny kunde</Button>
       </div>
