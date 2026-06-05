@@ -227,7 +227,7 @@ function Card({ children, style={}, padding=20 }) {
 function Modal({ open, onClose, title, children, width=560 }) {
   if (!open) return null;
   return (
-    <div onClick={onClose} style={{
+    <div style={{
       position:'fixed', inset:0, background:'rgba(22,39,61,0.45)', backdropFilter:'blur(2px)',
       display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:20,
     }}>
@@ -237,7 +237,7 @@ function Modal({ open, onClose, title, children, width=560 }) {
       }}>
         <div style={{padding:'18px 22px', borderBottom:`1px solid ${C.gray100}`, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{fontSize:17, fontWeight:700, color:C.navy}}>{title}</div>
-          <button onClick={onClose} style={{background:'none', border:'none', cursor:'pointer', color:C.gray400, fontSize:22, lineHeight:1, padding:4}}>×</button>
+          <button onClick={onClose} title="Lukk" style={{background:'none', border:'none', cursor:'pointer', color:C.gray400, fontSize:22, lineHeight:1, padding:4}}>×</button>
         </div>
         <div style={{padding:22}}>{children}</div>
       </div>

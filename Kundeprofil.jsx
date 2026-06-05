@@ -10,6 +10,8 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
 
   const [editOpen, setEditOpen] = useState(false);
   const [tilbudOpen, setTilbudOpen] = useState(false);
+  const [editingAct, setEditingAct] = useState(null);  // aktivitet under redigering
+  const [statusOpen, setStatusOpen] = useState(false);  // status-nedtrekk åpen?
 
   if (!kunde) {
     return (
@@ -45,6 +47,36 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
     }));
   };
 
+  // Slett en aktivitet fra tidslinjen
+  const deleteActivity = (id) => {
+    if (!window.confirm('Slette denne aktiviteten? Handlingen kan ikke angres.')) return;
+    setState(s => ({
+      ...s,
+      kunder: s.kunder.map(k => k.id !== kunde.id ? k : ({
+        ...k,
+        aktiviteter: k.aktiviteter.filter(a => a.id !== id),
+      })),
+    }));
+  };
+
+  // Oppdater en aktivitet
+  const updateActivity = (id, patch) => {
+    setState(s => ({
+      ...s,
+      kunder: s.kunder.map(k => k.id !== kunde.id ? k : ({
+        ...k,
+        aktiviteter: k.aktiviteter.map(a => a.id === id ? { ...a, ...patch } : a),
+      })),
+    }));
+    setEditingAct(null);
+  };
+
+  // Endre framdriftsstatus direkte fra profilen
+  const setStatus = (status) => {
+    updateKunde({ status });
+    setStatusOpen(false);
+  };
+
   const ansv = teamById[kunde.ansvarligId];
   const pkg = pakkeById[kunde.pakkeId];
 
@@ -68,7 +100,7 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
           <div style={{flex:1, minWidth:300}}>
             <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:6}}>
               <h1 style={{fontSize:24, fontWeight:700, color:C.navy, letterSpacing:'-0.01em', margin:0}}>{kunde.bedriftsnavn}</h1>
-              <StatusBadge status={kunde.status}/>
+              <StatusVelger status={kunde.status} open={statusOpen} setOpen={setStatusOpen} onPick={setStatus}/>
             </div>
             <div style={{fontSize:13, color:C.gray500}}>{kunde.bransje} · Org.nr {kunde.orgnr}</div>
             <div style={{fontSize:13, color:C.gray500, marginTop:2}}>{kunde.adresse}</div>
@@ -117,7 +149,7 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
             <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Aktivitetstidslinje</div>
             <div style={{fontSize:12, color:C.gray500}}>{activities.length} aktiviteter</div>
           </div>
-          <Timeline activities={activities}/>
+          <Timeline activities={activities} onEdit={setEditingAct} onDelete={deleteActivity}/>
         </Card>
 
         <div style={{display:'flex', flexDirection:'column', gap:20}}>
@@ -140,6 +172,15 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
           kunde={kunde}
           onClose={()=>setTilbudOpen(false)}
           onSaved={(tilbudId)=>{ setTilbudOpen(false); navigate('tilbudview', { tilbudId }); }}
+        />
+      )}
+
+      {editingAct && (
+        <RedigerAktivitetModal
+          team={team}
+          aktivitet={editingAct}
+          onClose={()=>setEditingAct(null)}
+          onSave={patch => updateActivity(editingAct.id, patch)}
         />
       )}
     </div>
@@ -178,7 +219,7 @@ function ContactCard({ title, k }) {
   );
 }
 
-function Timeline({ activities }) {
+function Timeline({ activities, onEdit, onDelete }) {
   if (activities.length === 0) return (
     <div style={{padding:40, textAlign:'center', color:C.gray400, fontSize:13}}>Ingen aktiviteter logget ennå.</div>
   );
@@ -187,16 +228,18 @@ function Timeline({ activities }) {
       {/* vertical line */}
       <div style={{position:'absolute', left: 22 + 18, top: 30, bottom: 30, width:2, background:C.gray100}}/>
       <div style={{display:'flex', flexDirection:'column', gap:18}}>
-        {activities.map(a => <TimelineItem key={a.id} a={a}/>)}
+        {activities.map(a => <TimelineItem key={a.id} a={a} onEdit={onEdit} onDelete={onDelete}/>)}
       </div>
     </div>
   );
 }
 
-function TimelineItem({ a }) {
+function TimelineItem({ a, onEdit, onDelete }) {
   const meta = AKTIVITETSTYPER[a.type] || AKTIVITETSTYPER.epost;
+  const [hover, setHover] = useState(false);
   return (
-    <div style={{display:'flex', gap:14, position:'relative'}}>
+    <div style={{display:'flex', gap:14, position:'relative'}}
+      onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
       <div style={{
         width:36, height:36, borderRadius:'50%', background: meta.bg,
         border:`2px solid #fff`, boxShadow:`0 0 0 1.5px ${meta.color}33`,
@@ -221,7 +264,33 @@ function TimelineItem({ a }) {
               }}>{formatKr(a.beløp)}</span>
             )}
           </div>
-          <span style={{fontSize:12, color:C.gray500, whiteSpace:'nowrap'}}>{formatDateShort(a.dato)}</span>
+          <div style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
+            <span style={{fontSize:12, color:C.gray500, whiteSpace:'nowrap'}}>{formatDateShort(a.dato)}</span>
+            {(onEdit || onDelete) && (
+              <div style={{display:'flex', gap:2, opacity: hover ? 1 : 0.25, transition:'opacity 120ms'}}>
+                {onEdit && (
+                  <button onClick={()=>onEdit(a)} title="Rediger aktivitet" style={{
+                    background:'none', border:'none', cursor:'pointer', color:C.gray400,
+                    padding:4, borderRadius:5, display:'flex', alignItems:'center',
+                  }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=C.gray100; e.currentTarget.style.color=C.navy;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='none'; e.currentTarget.style.color=C.gray400;}}>
+                    <Icon name="edit-3" size={13}/>
+                  </button>
+                )}
+                {onDelete && (
+                  <button onClick={()=>onDelete(a.id)} title="Slett aktivitet" style={{
+                    background:'none', border:'none', cursor:'pointer', color:C.gray400,
+                    padding:4, borderRadius:5, display:'flex', alignItems:'center',
+                  }}
+                    onMouseEnter={e=>{e.currentTarget.style.background='#fbe6e6'; e.currentTarget.style.color=C.red;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='none'; e.currentTarget.style.color=C.gray400;}}>
+                    <Icon name="trash-2" size={13}/>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{fontSize:14, fontWeight:600, color:C.navy, marginBottom: a.notat?4:0}}>{a.tittel}</div>
         {a.notat && <div style={{fontSize:13, color:C.gray700, lineHeight:1.5}}>{a.notat}</div>}
@@ -232,6 +301,106 @@ function TimelineItem({ a }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Status-velger: klikkbart statusmerke i profil-toppen ─────
+function StatusVelger({ status, open, setOpen, onPick }) {
+  return (
+    <div style={{position:'relative'}}>
+      <button onClick={()=>setOpen(!open)} title="Endre framdriftsstatus" style={{
+        background:'none', border:'none', cursor:'pointer', padding:0,
+        display:'inline-flex', alignItems:'center', gap:5, fontFamily:'inherit',
+      }}>
+        <StatusBadge status={status}/>
+        <Icon name="chevron-down" size={14} color={C.gray400}/>
+      </button>
+      {open && (
+        <>
+          {/* klikk-utenfor-lukker for nedtrekket */}
+          <div onClick={()=>setOpen(false)} style={{position:'fixed', inset:0, zIndex:40}}/>
+          <div style={{
+            position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:41,
+            background:'#fff', borderRadius:10, border:`1px solid ${C.gray100}`,
+            boxShadow:'0 8px 28px rgba(22,39,61,0.16)', padding:6, minWidth:190,
+          }}>
+            <div style={{fontSize:10, fontWeight:600, color:C.gray400, textTransform:'uppercase', letterSpacing:'.05em', padding:'6px 8px 4px'}}>Sett status</div>
+            {STATUS_LISTE.map(s => {
+              const farge = STATUS_FARGER[s] || {};
+              const valgt = s === status;
+              return (
+                <button key={s} onClick={()=>onPick(s)} style={{
+                  display:'flex', alignItems:'center', gap:9, width:'100%',
+                  background: valgt ? C.gray50 : 'transparent', border:'none', cursor:'pointer',
+                  padding:'8px 9px', borderRadius:6, textAlign:'left', fontFamily:'inherit',
+                  fontSize:13, fontWeight: valgt ? 700 : 500, color: C.navy,
+                }}
+                  onMouseEnter={e=>{ if(!valgt) e.currentTarget.style.background=C.gray50; }}
+                  onMouseLeave={e=>{ if(!valgt) e.currentTarget.style.background='transparent'; }}>
+                  <span style={{width:9, height:9, borderRadius:'50%', background: farge.dot || C.gray400, flexShrink:0}}/>
+                  <span style={{flex:1}}>{s}</span>
+                  {valgt && <Icon name="check" size={14} color={C.green}/>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Modal for å redigere en aktivitet i tidslinjen ───────────
+function RedigerAktivitetModal({ team, aktivitet, onClose, onSave }) {
+  const [form, setForm] = useState({
+    type: aktivitet.type,
+    dato: aktivitet.dato,
+    tittel: aktivitet.tittel || '',
+    notat: aktivitet.notat || '',
+    beløp: aktivitet.beløp != null ? String(aktivitet.beløp) : '',
+    loggetAv: aktivitet.loggetAv || (team[0]?.navn || ''),
+  });
+  const showBelop = ['tilbud_sendt','tilbud_akseptert','tilbud_avslått'].includes(form.type);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!form.tittel.trim()) return;
+    const patch = {
+      type: form.type, dato: form.dato, tittel: form.tittel.trim(),
+      notat: form.notat.trim(), loggetAv: form.loggetAv,
+    };
+    // Beløp: sett hvis relevant, ellers fjern feltet
+    patch.beløp = (showBelop && form.beløp !== '') ? Number(form.beløp) : null;
+    onSave(patch);
+  };
+
+  return (
+    <Modal open={true} onClose={onClose} title="Rediger aktivitet" width={520}>
+      <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:12}}>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 140px', gap:12}}>
+          <Select label="Type" value={form.type} onChange={e=>setForm({...form, type:e.target.value})}
+            options={Object.entries(AKTIVITETSTYPER).filter(([k])=>k!=='lead-mottatt').map(([k,v])=>({value:k, label:v.label}))}/>
+          <Input label="Dato" type="date" value={form.dato} onChange={e=>setForm({...form, dato:e.target.value})}/>
+        </div>
+        <Input label="Tittel *" value={form.tittel} onChange={e=>setForm({...form, tittel:e.target.value})} placeholder="Kort tittel"/>
+        <Textarea label="Notat" value={form.notat} onChange={e=>setForm({...form, notat:e.target.value})} rows={3}/>
+        {showBelop && (
+          <Input label="Beløp (kr)" type="number" value={form.beløp} onChange={e=>setForm({...form, beløp:e.target.value})} placeholder="0"/>
+        )}
+        <Select label="Logget av" value={form.loggetAv} onChange={e=>setForm({...form, loggetAv:e.target.value})}
+          options={team.map(t=>t.navn)}/>
+        <div style={{
+          fontSize:12, color:C.gray500, background:C.gray50, borderRadius:7,
+          padding:'9px 11px', lineHeight:1.5,
+        }}>
+          Merk: å endre aktivitetstype her endrer <strong>ikke</strong> kundens framdriftsstatus automatisk. Status justeres på statusmerket øverst.
+        </div>
+        <div style={{display:'flex', justifyContent:'flex-end', gap:10, marginTop:6}}>
+          <Button variant="secondary" type="button" onClick={onClose}>Avbryt</Button>
+          <Button variant="primary" type="submit">Lagre endringer</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
