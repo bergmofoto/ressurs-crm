@@ -10,9 +10,8 @@ function Oversikt({ state, navigate }) {
 
   // KPIs
   const aktiveKunder = kunder.filter(k => k.status === 'Vunnet').length;
-  const pipelineVerdi = kunder
-    .filter(k => ['Tilbud sendt','Forhandling'].includes(k.status))
-    .reduce((s,k) => s + (k.verdi || 0), 0);
+  // Forfalte oppfølginger: kunder med planlagt neste aktivitet som har passert
+  const forfalteOppf = kunder.filter(k => k.nesteAktivitet?.dato && daysBetween(TODAY, k.nesteAktivitet.dato) < 0).length;
 
   // Aktiviteter denne uken: man-søn rundt TODAY
   const today = parseISO(TODAY);
@@ -90,7 +89,7 @@ function Oversikt({ state, navigate }) {
       {/* KPI cards */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:24}}>
         <KPICard label="Aktive kunder" value={aktiveKunder} sub="Vunne avtaler" accent={C.green} icon="briefcase"/>
-        <KPICard label="Verdi i framdrift" value={formatKr(pipelineVerdi)} sub="Tilbud sendt + forhandling" accent={C.amber} icon="trending-up"/>
+        <KPICard label="Forfalte oppfølginger" value={forfalteOppf} sub={forfalteOppf > 0 ? 'Krever oppfølging nå' : 'Alt à jour'} accent={forfalteOppf > 0 ? C.red : C.green} icon="alert-circle"/>
         <KPICard label="Aktiviteter denne uken" value={aktiviteterDenneUken} sub={`${formatDateShort(mondayISO).replace(' 2026','')}–${formatDateShort(sundayISO).replace(' 2026','')}`} accent={C.blue} icon="calendar"/>
         <BudsjettKPICard
           actual={totalInntekt}
@@ -106,7 +105,6 @@ function Oversikt({ state, navigate }) {
       <Card style={{marginBottom:24}} padding={0}>
         <div style={{padding:'18px 24px', borderBottom:`1px solid ${C.gray100}`, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Fordeling per status</div>
-          <button onClick={() => navigate('pipeline')} style={{fontSize:13, color:C.blue, background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'inherit'}}>Åpne framdriftsoversikt →</button>
         </div>
         <div style={{padding:'18px 24px', display:'flex', flexDirection:'column', gap:12}}>
           {perStatus.map(p => {

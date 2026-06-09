@@ -5,9 +5,8 @@
 const NAV = [
   { id:'oversikt',     icon:'layout-dashboard',  label:'Oversikt' },
   { id:'kunder',       icon:'building-2',        label:'Kunder' },
-  { id:'pipeline',     icon:'kanban-square',     label:'Framdriftsoversikt' },
   { id:'rapporter',    icon:'bar-chart-3',       label:'Rapporter' },
-  { id:'intern',       icon:'users-2',           label:'Intern' },
+  { id:'intern',       icon:'notebook-pen',      label:'Intern' },
   { id:'innstillinger',icon:'settings',          label:'Innstillinger' },
 ];
 
@@ -52,9 +51,6 @@ function App() {
       break;
     case 'kundeprofil':
       content = <Kundeprofil state={state} setState={setState} navigate={navigate} kundeId={route.params?.id}/>;
-      break;
-    case 'pipeline':
-      content = <Pipeline state={state} setState={setState} navigate={navigate}/>;
       break;
     case 'rapporter':
       content = <Rapporter state={state} navigate={navigate}/>;

@@ -22,7 +22,7 @@ function Kunder({ state, setState, navigate, initialNew }) {
       if (ansvF && k.ansvarligId !== ansvF) return false;
       if (q) {
         const hay = [
-          k.bedriftsnavn, k.kontakt?.navn, k.kontakt2?.navn, k.notater,
+          k.bedriftsnavn, k.bransje, k.kontakt?.navn, k.kontakt2?.navn, k.notater,
         ].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -77,7 +77,7 @@ function Kunder({ state, setState, navigate, initialNew }) {
             <Icon name="search" size={14} color={C.gray400} style={{position:'absolute', left:11, top:'50%', transform:'translateY(-50%)'}}/>
             <input
               value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Søk i bedriftsnavn, kontaktperson, notater…"
+              placeholder="Søk i bedriftsnavn, bransje, kontaktperson, notater…"
               style={{width:'100%', padding:'9px 12px 9px 34px', border:`1.5px solid ${C.gray200}`, borderRadius:7,
                 fontSize:14, fontFamily:'inherit', color:C.navy, background:'#fff', outline:'none'}}
             />

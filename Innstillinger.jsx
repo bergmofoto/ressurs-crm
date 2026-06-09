@@ -129,7 +129,7 @@ function PakkerSection({ pakker, setPakker }) {
                 </div>
                 <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
                   <button onClick={()=>duplicatePakke(p)} style={iconBtn} title="Dupliser"><Icon name="copy" size={14} color={C.gray500}/></button>
-                  <button onClick={()=>setEditing(p)} style={iconBtn} title="Rediger"><Icon name="edit-3" size={14} color={C.gray500}/></button>
+                  <button onClick={()=>setEditing(p)} style={iconBtn} title="Rediger"><Icon name="pencil" size={14} color={C.gray500}/></button>
                   <button onClick={()=>deletePakke(p.id)} style={iconBtn} title="Slett"><Icon name="trash-2" size={14} color={C.red}/></button>
                 </div>
               </div>
@@ -372,7 +372,7 @@ function MøteRow({ m, i, total, onUpd, onDel, onMove }) {
           <button type="button" onClick={()=>onMove(1)} disabled={i===total-1} style={{...iconBtn, opacity: i===total-1?0.3:1}} title="Flytt ned"><Icon name="chevron-down" size={14} color={C.gray500}/></button>
         </div>
         <div style={{display:'flex', gap:4}}>
-          <button type="button" onClick={()=>setOpen(o=>!o)} style={iconBtn} title={open?'Lukk':'Rediger'}><Icon name={open?'chevron-up':'edit-3'} size={14} color={C.gray500}/></button>
+          <button type="button" onClick={()=>setOpen(o=>!o)} style={iconBtn} title={open?'Lukk':'Rediger'}><Icon name={open?'chevron-up':'pencil'} size={14} color={C.gray500}/></button>
           <button type="button" onClick={onDel} style={iconBtn} title="Slett"><Icon name="trash-2" size={14} color={C.red}/></button>
         </div>
       </div>
@@ -442,7 +442,7 @@ function TeamSection({ team, setTeam }) {
                 <div style={{fontSize:14, fontWeight:700, color:C.navy, marginTop:2}}>{t.budsjett ? formatKr(t.budsjett) : <span style={{color:C.gray400, fontWeight:500}}>–</span>}</div>
               </div>
               <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
-                <button onClick={()=>setEditing(t)} style={iconBtn} title="Rediger"><Icon name="edit-3" size={14} color={C.gray500}/></button>
+                <button onClick={()=>setEditing(t)} style={iconBtn} title="Rediger"><Icon name="pencil" size={14} color={C.gray500}/></button>
                 <button onClick={()=>deleteMember(t.id)} style={iconBtn} title="Slett"><Icon name="trash-2" size={14} color={C.red}/></button>
               </div>
             </div>

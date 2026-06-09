@@ -294,7 +294,7 @@ function MøteRowTilbud({ m, i, total, onUpd, onDel, onMove }) {
           <button type="button" onClick={()=>onMove(1)} disabled={i===total-1} style={{...iconBtnTilbud, opacity:i===total-1?0.3:1}}><Icon name="chevron-down" size={13} color={C.gray500}/></button>
         </div>
         <div style={{display:'flex', gap:4}}>
-          <button type="button" onClick={()=>setOpen(o=>!o)} style={iconBtnTilbud}><Icon name={open?'chevron-up':'edit-3'} size={13} color={C.gray500}/></button>
+          <button type="button" onClick={()=>setOpen(o=>!o)} style={iconBtnTilbud}><Icon name={open?'chevron-up':'pencil'} size={13} color={C.gray500}/></button>
           <button type="button" onClick={onDel} style={iconBtnTilbud}><Icon name="trash-2" size={13} color={C.red}/></button>
         </div>
       </div>

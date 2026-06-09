@@ -107,7 +107,7 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
           </div>
           <div style={{display:'flex', gap:10}}>
             <Button variant="secondary" icon="file-plus" onClick={() => setTilbudOpen(true)}>Lag tilbud</Button>
-            <Button variant="secondary" icon="edit-3" onClick={() => setEditOpen(true)}>Rediger</Button>
+            <Button variant="secondary" icon="pencil" onClick={() => setEditOpen(true)}>Rediger</Button>
           </div>
         </div>
 
@@ -275,7 +275,7 @@ function TimelineItem({ a, onEdit, onDelete }) {
                   }}
                     onMouseEnter={e=>{e.currentTarget.style.background=C.gray100; e.currentTarget.style.color=C.navy;}}
                     onMouseLeave={e=>{e.currentTarget.style.background='none'; e.currentTarget.style.color=C.gray400;}}>
-                    <Icon name="edit-3" size={13}/>
+                    <Icon name="pencil" size={13}/>
                   </button>
                 )}
                 {onDelete && (
@@ -468,7 +468,7 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
         <div style={{fontSize:14, color:C.navy, lineHeight:1.5, marginBottom:14}}>{ns.beskrivelse}</div>
         <div style={{display:'flex', gap:8}}>
           <Button variant="success" size="sm" icon="check" onClick={markFullført} style={{flex:1, justifyContent:'center'}}>Marker fullført</Button>
-          <Button variant="secondary" size="sm" icon="edit-3" onClick={()=>setEditing(true)}>Endre</Button>
+          <Button variant="secondary" size="sm" icon="pencil" onClick={()=>setEditing(true)}>Endre</Button>
         </div>
       </div>
     </Card>
@@ -498,7 +498,7 @@ function NyAktivitetSkjema({ team, kunde, onAdd }) {
   return (
     <Card padding={0}>
       <div style={{padding:'14px 18px', borderBottom:`1px solid ${C.gray100}`}}>
-        <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Logg ny aktivitet</div>
+        <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Logg aktivitet</div>
       </div>
       <form onSubmit={submit} style={{padding:'16px 18px', display:'flex', flexDirection:'column', gap:10}}>
         <div style={{display:'grid', gridTemplateColumns:'1fr 110px', gap:10}}>
