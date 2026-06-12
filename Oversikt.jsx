@@ -9,7 +9,7 @@ function Oversikt({ state, navigate }) {
   const pakkeById = useMemo(() => Object.fromEntries(pakker.map(p => [p.id, p])), [pakker]);
 
   // KPIs
-  const aktiveKunder = kunder.filter(k => k.status === 'Vunnet').length;
+  const aktiveKunder = kunder.filter(k => kundeProsesser(k).some(p => p.status === 'Vunnet' || p.status === 'Ferdigstilt')).length;
   // Forfalte oppfølginger: kunder med planlagt neste aktivitet som har passert
   const forfalteOppf = kunder.filter(k => k.nesteAktivitet?.dato && daysBetween(TODAY, k.nesteAktivitet.dato) < 0).length;
 
@@ -33,10 +33,11 @@ function Oversikt({ state, navigate }) {
     : totalInntekt >= proRated * 0.6 ? C.amber
     : C.red;
 
-  // Pipeline per status
+  // Fordeling per status — på prosessnivå (hver kunde kan ha flere salg)
+  const alleProsesser = kunder.flatMap(k => kundeProsesser(k));
   const perStatus = STATUS_LISTE.map(s => {
-    const items = kunder.filter(k => k.status === s);
-    return { status: s, antall: items.length, verdi: items.reduce((sum,k)=>sum+(k.verdi||0),0) };
+    const items = alleProsesser.filter(p => p.status === s);
+    return { status: s, antall: items.length, verdi: items.reduce((sum,p)=>sum+(p.verdi||0),0) };
   });
   const maxVerdi = Math.max(...perStatus.map(p => p.verdi), 1);
 
@@ -119,7 +120,7 @@ function Oversikt({ state, navigate }) {
                 <div style={{position:'relative', height:24, background:C.gray50, borderRadius:6, overflow:'hidden'}}>
                   <div style={{width:`${Math.max(w, p.antall>0?4:0)}%`, height:'100%', background:sc.accent, opacity:0.85, borderRadius:6, transition:'width 300ms'}}/>
                   <div style={{position:'absolute', left:10, top:0, bottom:0, display:'flex', alignItems:'center', fontSize:12, fontWeight:600, color: w>15 ? '#fff' : C.gray700}}>
-                    {p.antall} {p.antall === 1 ? 'kunde' : 'kunder'}
+                    {p.antall} {p.antall === 1 ? 'sak' : 'saker'}
                   </div>
                 </div>
                 <div style={{fontSize:13, fontWeight:600, color:C.navy, textAlign:'right'}}>{formatKr(p.verdi)}</div>

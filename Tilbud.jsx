@@ -12,10 +12,10 @@ const TILBUD_STATUS = {
 // ============================================================
 // TILBUDSBYGGER — Modal
 // ============================================================
-function TilbudBuilder({ state, setState, kunde, onClose, onSaved }) {
+function TilbudBuilder({ state, setState, kunde, prosess, onClose, onSaved }) {
   const { pakker, team, nesteTilbudsnr } = state;
 
-  const [pakkeId, setPakkeId] = useState(kunde.pakkeId || pakker[0]?.id || '');
+  const [pakkeId, setPakkeId] = useState(prosess?.pakkeId || kunde.pakkeId || pakker[0]?.id || '');
   const valgtPakke = pakker.find(p => p.id === pakkeId);
 
   // Snapshot av pakken inn i utkastet — endringer kun for dette tilbudet
@@ -72,6 +72,8 @@ function TilbudBuilder({ state, setState, kunde, onClose, onSaved }) {
       kundeId: kunde.id,
       pakkeId: valgtPakke.id,
       pakkeNavn: valgtPakke.navn,
+      prosessId: prosess?.id || null,
+      prosessNavn: prosess ? (prosess.navn || valgtPakke.navn) : '',
       pris: Number(form.pris)||0,
       timepris: Number(form.timepris)||0,
       status: markerSomSendt ? 'Sendt' : 'Utkast',
@@ -96,13 +98,16 @@ function TilbudBuilder({ state, setState, kunde, onClose, onSaved }) {
           loggetAv: form.utstedtAv || team[0]?.navn || '',
           beløp: Number(form.pris)||0,
           tilbudId: nyttTilbud.id,
+          prosessId: prosess?.id || null,
+          prosessNavn: prosess ? (prosess.navn || valgtPakke.navn) : '',
         };
-        next.kunder = s.kunder.map(k => k.id !== kunde.id ? k : ({
-          ...k,
-          aktiviteter: [...k.aktiviteter, akt],
-          sistKontakt: TODAY,
-          status: (k.status === 'Lead' || k.status === 'Kontaktet' || k.status === 'Behovskartlagt') ? 'Tilbud sendt' : k.status,
-        }));
+        next.kunder = s.kunder.map(k => {
+          if (k.id !== kunde.id) return k;
+          const liste = kundeProsesser(k).map(p =>
+            (prosess && p.id === prosess.id && ['Lead','Kontaktet','Behovskartlagt'].includes(p.status))
+              ? { ...p, status: 'Tilbud sendt' } : p);
+          return { ...k, aktiviteter: [...k.aktiviteter, akt], sistKontakt: TODAY, ...kundeAvledet(liste) };
+        });
       }
       return next;
     });
@@ -354,16 +359,25 @@ function TilbudVisning({ state, setState, navigate, tilbudId }) {
           loggetAv: tilbud.utstedtAv || '',
           beløp: tilbud.pris,
           tilbudId: tilbud.id,
+          prosessId: tilbud.prosessId || null,
+          prosessNavn: tilbud.prosessNavn || tilbud.pakkeNavn,
         };
-        next.kunder = s.kunder.map(k => k.id !== kunde.id ? k : ({
-          ...k,
-          aktiviteter: [...k.aktiviteter, akt],
-          sistKontakt: TODAY,
-          status: nyStatus === 'Akseptert' ? 'Vunnet'
-                : nyStatus === 'Avslått'   ? 'Tapt'
-                : nyStatus === 'Sendt' && (k.status === 'Lead' || k.status === 'Kontaktet' || k.status === 'Behovskartlagt') ? 'Tilbud sendt'
-                : k.status,
-        }));
+        next.kunder = s.kunder.map(k => {
+          if (k.id !== kunde.id) return k;
+          const liste0 = kundeProsesser(k);
+          const target = liste0.find(p => p.id === tilbud.prosessId)
+                      || liste0.find(p => p.pakkeId === tilbud.pakkeId)
+                      || liste0[0];
+          const liste = liste0.map(p => {
+            if (!target || p.id !== target.id) return p;
+            const ns = nyStatus === 'Akseptert' ? 'Vunnet'
+                     : nyStatus === 'Avslått'   ? 'Tapt'
+                     : nyStatus === 'Sendt' && ['Lead','Kontaktet','Behovskartlagt'].includes(p.status) ? 'Tilbud sendt'
+                     : p.status;
+            return ns === p.status ? p : { ...p, status: ns };
+          });
+          return { ...k, aktiviteter: [...k.aktiviteter, akt], sistKontakt: TODAY, ...kundeAvledet(liste) };
+        });
       }
       return next;
     });

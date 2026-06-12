@@ -45,9 +45,10 @@ npx serve .
 | `supabase-config.js` | URL + publishable key til Supabase-prosjektet |
 | `supabase-store.jsx` | Datalag: henter/skriver mot Supabase, login-skjerm |
 | `seed.js` | Statiske eksempeldata (brukes ikke etter at Supabase er på plass; beholdes for referanse) |
-| `Oversikt.jsx`, `Kunder.jsx`, `Kundeprofil.jsx`, `Pipeline.jsx`, `Rapporter.jsx`, `Tilbud.jsx`, `Intern.jsx`, `Innstillinger.jsx` | Skjermbilder for hver fane |
+| `Oversikt.jsx`, `Kunder.jsx`, `Kundeprofil.jsx`, `Rapporter.jsx`, `Tilbud.jsx`, `Intern.jsx`, `Innstillinger.jsx` | Skjermbilder for hver fane |
 | `assets/` | Logoer (PNG) |
 | `supabase/01-schema.sql` | Databaseskjema — referanse, allerede kjørt i Supabase |
+| `supabase/02-prosesser.sql` | Migrasjon: flere prosesser (pakker/salg) per kunde |
 | `vercel.json` | Hostingkonfigurasjon |
 
 ---
@@ -57,6 +58,11 @@ npx serve .
 Skjemaet ligger i `supabase/01-schema.sql`. Det er allerede kjørt i prosjektet
 (`lgiwcqmwbpdipucshqxy.supabase.co`). Hvis du oppretter et nytt Supabase-prosjekt,
 kjør filen via SQL Editor → New query.
+
+> **Migrasjon (kjøres én gang):** `supabase/02-prosesser.sql` legger til kolonnen
+> `prosesser` på `kunder` og `prosess_id`/`prosess_navn` på `tilbud`, slik at en
+> kunde kan ha flere pakker/salg samtidig. Kjør den i SQL Editor før du deployer
+> denne versjonen. Trygg å kjøre flere ganger — ingen data slettes.
 
 ### Tabeller
 - `team_members` — ansatte

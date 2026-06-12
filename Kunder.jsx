@@ -18,7 +18,7 @@ function Kunder({ state, setState, navigate, initialNew }) {
     const q = search.trim().toLowerCase();
     let rows = kunder.filter(k => {
       if (statusF && k.status !== statusF) return false;
-      if (pakkeF && k.pakkeId !== pakkeF) return false;
+      if (pakkeF && !kundeProsesser(k).some(p => p.pakkeId === pakkeF)) return false;
       if (ansvF && k.ansvarligId !== ansvF) return false;
       if (q) {
         const hay = [
@@ -117,7 +117,9 @@ function Kunder({ state, setState, navigate, initialNew }) {
             <tbody>
               {filtered.map(k => {
                 const ansv = teamById[k.ansvarligId];
-                const pkg = pakkeById[k.pakkeId];
+                const kp = kundeProsesser(k);
+                const pkg = pakkeById[k.pakkeId] || (kp[0] && pakkeById[kp[0].pakkeId]);
+                const flereProsesser = kp.length > 1;
                 const diff = k.nesteAktivitet?.dato ? daysBetween(TODAY, k.nesteAktivitet.dato) : null;
                 const nesteColor = diff == null ? C.gray400 : diff < 0 ? C.red : diff <= 3 ? C.amber : C.gray700;
                 return (
@@ -135,7 +137,10 @@ function Kunder({ state, setState, navigate, initialNew }) {
                       <div style={{fontSize:13, color:C.navy}}>{k.kontakt?.navn || '–'}</div>
                       <div style={{fontSize:11, color:C.gray400, marginTop:2}}>{k.kontakt?.tittel}</div>
                     </td>
-                    <td style={{padding:'12px 16px', fontSize:13, color:C.gray700}}>{pkg?.navn || '–'}</td>
+                    <td style={{padding:'12px 16px', fontSize:13, color:C.gray700}}>
+                      {pkg?.navn || '–'}
+                      {flereProsesser && <span style={{fontSize:11, color:C.gray400, marginLeft:6}}>+{kp.length-1}</span>}
+                    </td>
                     <td style={{padding:'12px 16px'}}><StatusBadge status={k.status} size="sm"/></td>
                     <td style={{padding:'12px 16px', fontSize:13, fontWeight:600, color:C.navy, textAlign:'right'}}>{formatKr(k.verdi)}</td>
                     <td style={{padding:'12px 16px', fontSize:12, color:C.gray500}}>{k.sistKontakt ? formatDateShort(k.sistKontakt) : '–'}</td>
@@ -217,7 +222,12 @@ function NyKundeModal({ state, onClose, onCreate }) {
     e?.preventDefault();
     const errors = validateKunde(form);
     if (Object.keys(errors).length) { setErrs(errors); return; }
-    onCreate(form);
+    const { pakkeId, verdi, status, ...meta } = form;
+    const prosesser = [{
+      id: 'pr' + Date.now(), navn: '', pakkeId,
+      verdi: Number(verdi) || 0, status, opprettet: TODAY, notat: '',
+    }];
+    onCreate({ ...meta, ...kundeAvledet(prosesser) });
   };
 
   return (
@@ -238,7 +248,7 @@ function NyKundeModal({ state, onClose, onCreate }) {
           <Input label="Telefon" value={form.kontakt.telefon} onChange={e=>upd('kontakt.telefon', e.target.value)}/>
         </div>
 
-        <div style={{fontSize:11, fontWeight:600, color:C.gray500, textTransform:'uppercase', letterSpacing:'.05em', marginTop:6}}>Salgsinformasjon</div>
+        <div style={{fontSize:11, fontWeight:600, color:C.gray500, textTransform:'uppercase', letterSpacing:'.05em', marginTop:6}}>Første prosess</div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
           <Select label="Pakke" value={form.pakkeId} onChange={e=>{
             upd('pakkeId', e.target.value);

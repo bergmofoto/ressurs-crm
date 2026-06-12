@@ -517,6 +517,34 @@ function Kunderapport({ state, navigate }) {
           </div>
         </Section>
 
+        {/* Prosesser */}
+        {kundeProsesser(k).length > 0 && (
+          <Section title="Prosesser" subtitle={`${kundeProsesser(k).length} ${kundeProsesser(k).length===1?'prosess':'prosesser'} · total ${formatKr(k.verdi)}`} topBorder>
+            <div style={{overflow:'hidden', borderRadius:8, border:`1px solid ${C.gray100}`}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+                <thead>
+                  <tr style={{background:C.gray50}}>
+                    <th style={th}>Prosess</th>
+                    <th style={th}>Pakke</th>
+                    <th style={th}>Status</th>
+                    <th style={{...th, textAlign:'right'}}>Verdi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kundeProsesser(k).map((p, i) => (
+                    <tr key={p.id} style={{borderTop: i>0 ? `1px solid ${C.gray100}` : 'none'}}>
+                      <td style={td}>{prosessNavn(p, pakkeById)}</td>
+                      <td style={{...td, color:C.gray700}}>{pakkeById[p.pakkeId]?.navn || '–'}</td>
+                      <td style={td}><StatusBadge status={p.status} size="sm"/></td>
+                      <td style={{...td, textAlign:'right', fontWeight:600}}>{formatKr(p.verdi)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        )}
+
         {/* Neste planlagte */}
         {k.nesteAktivitet?.dato && (
           <Section title="Neste planlagte aktivitet" topBorder>

@@ -254,22 +254,96 @@ const LS_KEY_UNUSED = 'ressurs_crm_state_v1';
 // (localStorage-versjonen av useStore/migrateState/resetStore er fjernet —
 // erstattet av Supabase-versjonen i supabase-store.jsx.)
 
-// ── Budsjett / inntekt-hjelpere ─────────────────────────────
-// "Faktisk generert inntekt" = sum av verdi på vunne kunder, eller
-// (mer presist) sum av beløp på tilbud_akseptert-aktiviteter for én ansatt.
+// ── Prosesser (flere pakker/salg per kunde) ─────────────────
+// En kunde kan ha flere prosesser samtidig. Hver prosess er ett unikt salg
+// med egen pakke, verdi og status. Lagres i k.prosesser (JSON-liste).
+// De gamle toppfeltene k.pakkeId / k.verdi / k.status holdes i synk som
+// AVLEDEDE cachefelt (se kundeAvledet) slik at resten av appen er uendret.
 
-// Total inntekt: alle vunne + ferdigstilte kunder (hele firmaet)
-function inntektTotal(kunder) {
-  return kunder
-    .filter(k => k.status === 'Vunnet' || k.status === 'Ferdigstilt')
-    .reduce((s, k) => s + (k.verdi || 0), 0);
+const STATUS_RANK = Object.fromEntries(STATUS_LISTE.map((s, i) => [s, i]));
+const LUKKEDE_STATUS = ['Vunnet', 'Ferdigstilt', 'Tapt'];
+
+// Les ut prosesser for visning. Hvis kunden ikke har en prosess-liste ennå
+// (kunder fra før denne funksjonen), syntetiseres én prosess fra de gamle
+// feltene pakkeId/verdi/status — slik at ingenting forsvinner. Lista skrives
+// til databasen første gang prosessene faktisk redigeres.
+function kundeProsesser(k) {
+  if (Array.isArray(k?.prosesser) && k.prosesser.length) return k.prosesser;
+  if (k && (k.pakkeId || (Number(k.verdi) || 0) > 0)) {
+    return [{
+      id: 'pr_legacy', navn: '', pakkeId: k.pakkeId || '',
+      verdi: Number(k.verdi) || 0, status: k.status || 'Lead',
+      opprettet: k.sistKontakt || TODAY, notat: '',
+    }];
+  }
+  return [];
 }
 
-// Inntekt per ansatt: vunne + ferdigstilte kunder hvor ansvarligId matcher
+// Total verdi for kunden = sum av alle prosesser som ikke er tapt.
+function kundeTotalVerdi(prosesser) {
+  return (prosesser || []).filter(p => p.status !== 'Tapt')
+    .reduce((s, p) => s + (Number(p.verdi) || 0), 0);
+}
+
+// Vunnet/ferdigstilt verdi — grunnlag for inntekt og budsjett.
+function kundeVunnetVerdi(prosesser) {
+  return (prosesser || []).filter(p => p.status === 'Vunnet' || p.status === 'Ferdigstilt')
+    .reduce((s, p) => s + (Number(p.verdi) || 0), 0);
+}
+
+// Representativ status for hele kunden (vises i kundeliste + dashboard):
+// den mest framskredne åpne prosessen, ellers beste lukkede utfall.
+function kundeHovedstatus(prosesser) {
+  const list = prosesser || [];
+  if (!list.length) return 'Lead';
+  const apne = list.filter(p => !LUKKEDE_STATUS.includes(p.status));
+  if (apne.length) {
+    return apne.reduce((best, p) => (STATUS_RANK[p.status] > STATUS_RANK[best.status] ? p : best)).status;
+  }
+  if (list.some(p => p.status === 'Vunnet')) return 'Vunnet';
+  if (list.some(p => p.status === 'Ferdigstilt')) return 'Ferdigstilt';
+  return 'Tapt';
+}
+
+// Primær pakke (kundeliste-kolonne + tilbud-default): mest framskredne åpne,
+// ellers første prosess.
+function kundePrimaerPakke(prosesser) {
+  const list = prosesser || [];
+  if (!list.length) return '';
+  const apne = list.filter(p => !LUKKEDE_STATUS.includes(p.status) && p.pakkeId);
+  if (apne.length) return apne.reduce((best, p) => (STATUS_RANK[p.status] > STATUS_RANK[best.status] ? p : best)).pakkeId;
+  return list[0].pakkeId || '';
+}
+
+// Bygg de avledede toppfeltene fra en prosess-liste. Brukes ved enhver
+// endring av prosesser slik at k.verdi/k.status/k.pakkeId holdes i synk.
+function kundeAvledet(prosesser) {
+  return {
+    prosesser,
+    verdi: kundeTotalVerdi(prosesser),
+    status: kundeHovedstatus(prosesser),
+    pakkeId: kundePrimaerPakke(prosesser),
+  };
+}
+
+// Visningsnavn for en prosess (eget navn, ellers pakkenavn).
+function prosessNavn(p, pakkeById) {
+  if (!p) return '';
+  return p.navn || pakkeById?.[p.pakkeId]?.navn || 'Prosess';
+}
+
+// ── Budsjett / inntekt-hjelpere ─────────────────────────────
+// "Faktisk generert inntekt" = sum av verdi på vunne/ferdigstilte prosesser.
+
+// Total inntekt: alle vunne + ferdigstilte prosesser (hele firmaet)
+function inntektTotal(kunder) {
+  return kunder.reduce((s, k) => s + kundeVunnetVerdi(kundeProsesser(k)), 0);
+}
+
+// Inntekt per ansatt: vunne + ferdigstilte prosesser hvor ansvarligId matcher
 function inntektForAnsatt(kunder, teamId) {
-  return kunder
-    .filter(k => (k.status === 'Vunnet' || k.status === 'Ferdigstilt') && k.ansvarligId === teamId)
-    .reduce((s, k) => s + (k.verdi || 0), 0);
+  return kunder.filter(k => k.ansvarligId === teamId)
+    .reduce((s, k) => s + kundeVunnetVerdi(kundeProsesser(k)), 0);
 }
 
 // Total budsjett (sum av alle ansatte sine budsjett)
@@ -366,6 +440,8 @@ Object.assign(window, {
   C, TODAY, formatKr, formatKrShort, parseISO, toISO, daysBetween,
   formatDateLong, formatDateShort, relativeDate,
   STATUS_LISTE, STATUS_FARGER, AKTIVITETSTYPER, PAKKE_TYPER,
+  STATUS_RANK, LUKKEDE_STATUS,
+  kundeProsesser, kundeTotalVerdi, kundeVunnetVerdi, kundeHovedstatus, kundePrimaerPakke, kundeAvledet, prosessNavn,
   Avatar, teamColor, StatusBadge, Icon, Button, Input, Select, Textarea, Card, Modal,
   validateKunde,
   inntektTotal, inntektForAnsatt, budsjettTotal, proRatedTarget, budsjettStatus,

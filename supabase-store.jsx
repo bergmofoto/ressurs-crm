@@ -112,6 +112,7 @@ function kundeFromDb(r) {
     notater: r.notater || '',
     nesteAktivitet: r.neste_aktivitet || null,
     aktiviteter: Array.isArray(r.aktiviteter) ? r.aktiviteter : [],
+    prosesser: Array.isArray(r.prosesser) ? r.prosesser : [],
   };
 }
 function kundeToDb(k) {
@@ -131,6 +132,7 @@ function kundeToDb(k) {
     notater: k.notater || '',
     neste_aktivitet: k.nesteAktivitet || null,
     aktiviteter: k.aktiviteter || [],
+    prosesser: Array.isArray(k.prosesser) ? k.prosesser : [],
   };
 }
 
@@ -141,6 +143,8 @@ function tilbudFromDb(r) {
     kundeId: r.kunde_id,
     pakkeId: r.pakke_id || '',
     pakkeNavn: r.pakke_navn || '',
+    prosessId: r.prosess_id || '',
+    prosessNavn: r.prosess_navn || '',
     dato: r.dato || '',
     gyldigTil: r.gyldig_til || '',
     utstedtAv: r.utstedt_av || '',
@@ -169,6 +173,8 @@ function tilbudToDb(t) {
     kunde_id: t.kundeId,
     pakke_id: t.pakkeId || null,
     pakke_navn: t.pakkeNavn || '',
+    prosess_id: t.prosessId || null,
+    prosess_navn: t.prosessNavn || '',
     dato: t.dato || null,
     gyldig_til: t.gyldigTil || null,
     utstedt_av: t.utstedtAv || '',
