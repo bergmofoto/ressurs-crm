@@ -83,7 +83,13 @@ function relativeDate(iso) {
 }
 
 // ── Status / pipeline maps ──────────────────────────────────
-const STATUS_LISTE = ['Lead','Kontaktet','Behovskartlagt','Tilbud sendt','Forhandling','Vunnet','Ferdigstilt','Tapt'];
+// Synlig statusliste (brukes i filtre, fordeling, nedtrekk). Tre kategorier
+// ble fjernet etter testperioden: Kontaktet, Behovskartlagt, Forhandling.
+const STATUS_LISTE = ['Lead','Tilbud sendt','Vunnet','Ferdigstilt','Tapt'];
+
+// Full historisk rekkefølge — beholdes så evt. eldre kunder med en fjernet
+// status fortsatt sorteres/rangeres riktig (badge-farger ligger i STATUS_FARGER).
+const STATUS_ORDEN = ['Lead','Kontaktet','Behovskartlagt','Tilbud sendt','Forhandling','Vunnet','Ferdigstilt','Tapt'];
 
 const STATUS_FARGER = {
   'Lead':            { bg:'#eef0f3', fg:'#6b7787', dot:'#98a2b0', accent:'#98a2b0' },
@@ -260,7 +266,7 @@ const LS_KEY_UNUSED = 'ressurs_crm_state_v1';
 // De gamle toppfeltene k.pakkeId / k.verdi / k.status holdes i synk som
 // AVLEDEDE cachefelt (se kundeAvledet) slik at resten av appen er uendret.
 
-const STATUS_RANK = Object.fromEntries(STATUS_LISTE.map((s, i) => [s, i]));
+const STATUS_RANK = Object.fromEntries(STATUS_ORDEN.map((s, i) => [s, i]));
 const LUKKEDE_STATUS = ['Vunnet', 'Ferdigstilt', 'Tapt'];
 
 // Les ut prosesser for visning. Hvis kunden ikke har en prosess-liste ennå
