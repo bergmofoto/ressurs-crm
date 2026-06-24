@@ -85,7 +85,7 @@ function relativeDate(iso) {
 // ── Status / pipeline maps ──────────────────────────────────
 // Synlig statusliste (brukes i filtre, fordeling, nedtrekk). Tre kategorier
 // ble fjernet etter testperioden: Kontaktet, Behovskartlagt, Forhandling.
-const STATUS_LISTE = ['Lead','Tilbud sendt','Vunnet','Ferdigstilt','Tapt'];
+const STATUS_LISTE = ['Lead','Kontaktet','Tilbud sendt','Vunnet','Ferdigstilt','Tapt'];
 
 // Full historisk rekkefølge — beholdes så evt. eldre kunder med en fjernet
 // status fortsatt sorteres/rangeres riktig (badge-farger ligger i STATUS_FARGER).

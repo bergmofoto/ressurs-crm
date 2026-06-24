@@ -531,6 +531,11 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
     updateKunde({ nesteAktivitet: null });
   };
 
+  const fjernPlanlagt = () => {
+    if (!window.confirm('Fjerne den planlagte aktiviteten? Den blir ikke logget i tidslinjen.')) return;
+    updateKunde({ nesteAktivitet: null });
+  };
+
   return (
     <Card padding={0} style={{overflow:'hidden'}}>
       <div style={{padding:'14px 18px', background: accentBg, borderBottom:`1px solid ${accent}33`, display:'flex', alignItems:'center', gap:10}}>
@@ -546,6 +551,7 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
         <div style={{display:'flex', gap:8}}>
           <Button variant="success" size="sm" icon="check" onClick={markFullført} style={{flex:1, justifyContent:'center'}}>Marker fullført</Button>
           <Button variant="secondary" size="sm" icon="pencil" onClick={()=>setEditing(true)}>Endre</Button>
+          <Button variant="secondary" size="sm" icon="trash-2" onClick={fjernPlanlagt} title="Fjern planlagt aktivitet">Fjern</Button>
         </div>
       </div>
     </Card>
