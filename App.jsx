@@ -47,7 +47,7 @@ function App() {
       content = <Oversikt state={state} navigate={navigate}/>;
       break;
     case 'kunder':
-      content = <Kunder state={state} setState={setState} navigate={navigate} initialNew={route.params?.newCustomer}/>;
+      content = <Kunder state={state} setState={setState} navigate={navigate} initialNew={route.params?.newCustomer} initialStatus={route.params?.status}/>;
       break;
     case 'kundeprofil':
       content = <Kundeprofil state={state} setState={setState} navigate={navigate} kundeId={route.params?.id}/>;

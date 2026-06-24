@@ -106,13 +106,23 @@ function Oversikt({ state, navigate }) {
       <Card style={{marginBottom:24}} padding={0}>
         <div style={{padding:'18px 24px', borderBottom:`1px solid ${C.gray100}`, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Fordeling per status</div>
+          <div style={{fontSize:12, color:C.gray400}}>Klikk en rad for å se kundene</div>
         </div>
         <div style={{padding:'18px 24px', display:'flex', flexDirection:'column', gap:12}}>
           {perStatus.map(p => {
             const sc = STATUS_FARGER[p.status];
             const w = p.verdi > 0 ? (p.verdi / maxVerdi) * 100 : 0;
+            const klikkbar = p.antall > 0;
             return (
-              <div key={p.status} style={{display:'grid', gridTemplateColumns:'150px 1fr 140px', gap:14, alignItems:'center'}}>
+              <div key={p.status}
+                onClick={klikkbar ? () => navigate('kunder', { status: p.status }) : undefined}
+                title={klikkbar ? `Vis kunder med status «${p.status}»` : undefined}
+                style={{display:'grid', gridTemplateColumns:'150px 1fr 140px', gap:14, alignItems:'center',
+                  padding:'4px 8px', margin:'0 -8px', borderRadius:7,
+                  cursor: klikkbar ? 'pointer' : 'default', transition:'background 100ms'}}
+                onMouseEnter={klikkbar ? (e => e.currentTarget.style.background = C.gray50) : undefined}
+                onMouseLeave={klikkbar ? (e => e.currentTarget.style.background = 'transparent') : undefined}
+              >
                 <div style={{display:'flex', alignItems:'center', gap:8}}>
                   <span style={{width:8, height:8, borderRadius:'50%', background:sc.dot}}/>
                   <span style={{fontSize:13, fontWeight:600, color:C.navy}}>{p.status}</span>

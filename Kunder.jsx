@@ -2,13 +2,13 @@
 // KUNDER — Customer list with search, filters, sortable table
 // ============================================================
 
-function Kunder({ state, setState, navigate, initialNew }) {
+function Kunder({ state, setState, navigate, initialNew, initialStatus }) {
   const { kunder, team, pakker } = state;
   const teamById  = useMemo(() => Object.fromEntries(team.map(t  => [t.id, t])),  [team]);
   const pakkeById = useMemo(() => Object.fromEntries(pakker.map(p => [p.id, p])), [pakker]);
 
   const [search, setSearch] = useState('');
-  const [statusF, setStatusF] = useState('');
+  const [statusF, setStatusF] = useState(initialStatus || '');
   const [pakkeF,  setPakkeF]  = useState('');
   const [ansvF,   setAnsvF]   = useState('');
   const [sort, setSort] = useState({ col: 'bedriftsnavn', dir: 'asc' });
@@ -17,7 +17,7 @@ function Kunder({ state, setState, navigate, initialNew }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let rows = kunder.filter(k => {
-      if (statusF && k.status !== statusF) return false;
+      if (statusF && !kundeProsesser(k).some(p => p.status === statusF)) return false;
       if (pakkeF && !kundeProsesser(k).some(p => p.pakkeId === pakkeF)) return false;
       if (ansvF && k.ansvarligId !== ansvF) return false;
       if (q) {
