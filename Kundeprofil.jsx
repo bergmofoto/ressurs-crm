@@ -14,6 +14,7 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
   const [statusOpen, setStatusOpen] = useState(false);  // status-nedtrekk åpen?
   const [selProsessId, setSelProsessId] = useState(null);   // valgt prosess
   const [prosessModal, setProsessModal] = useState(null);   // {mode:'new'} | {mode:'edit', prosess}
+  const [kunProsessAkt, setKunProsessAkt] = useState(false); // tidslinje: vis kun valgt prosess
 
   if (!kunde) {
     return (
@@ -114,7 +115,12 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
   const pkg = selectedProsess ? pakkeById[selectedProsess.pakkeId] : null;
 
   // Activities sorted desc
-  const activities = [...kunde.aktiviteter].sort((a,b) => b.dato.localeCompare(a.dato));
+  const activities = [...kunde.aktiviteter]
+    .filter(a => !kunProsessAkt || !selectedProsess || a.prosessId === selectedProsess.id)
+    .sort((a,b) => b.dato.localeCompare(a.dato));
+  // Veileder og kontaktperson for valgt prosess (faller tilbake på kundens)
+  const prosessAnsv = selectedProsess?.ansvarligId ? teamById[selectedProsess.ansvarligId] : ansv;
+  const prosessKontakt = selectedProsess?.kontakt?.navn ? selectedProsess.kontakt : kunde.kontakt;
 
   return (
     <div style={{padding:'28px 32px', maxWidth:1200, margin:'0 auto'}}>
@@ -138,6 +144,7 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
             <div style={{fontSize:13, color:C.gray500, marginTop:2}}>{kunde.adresse}</div>
           </div>
           <div style={{display:'flex', gap:10}}>
+            <Button variant="primary" icon="plus" onClick={() => setProsessModal({ mode:'new' })}>Start ny prosess</Button>
             <Button variant="secondary" icon="file-plus" onClick={() => setTilbudOpen(true)}>Lag tilbud</Button>
             <Button variant="secondary" icon="pencil" onClick={() => setEditOpen(true)}>Rediger</Button>
           </div>
@@ -165,19 +172,20 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
             )}
           </div>
           {selectedProsess ? (
-            <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:24, alignItems:'start'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:20, alignItems:'start'}}>
               <Stat label="Pakke" value={pkg?.navn || prosessNavn(selectedProsess, pakkeById)} sub={pkg ? formatKr(pkg.pris) + ' / år' : ''}/>
               <div>
                 <div style={statLabelStyle}>Status</div>
                 <StatusVelger status={selectedProsess.status} open={statusOpen} setOpen={setStatusOpen} onPick={setProsessStatus}/>
               </div>
               <Stat label="Verdi (denne prosessen)" value={formatKr(selectedProsess.verdi)}/>
-              <Stat label="Ansvarlig selger" value={ansv?.navn || '–'} sub={ansv?.rolle}/>
+              <Stat label="Veileder" value={prosessAnsv?.navn || '–'} sub={prosessAnsv?.rolle}/>
+              <Stat label="Kontaktperson" value={prosessKontakt?.navn || '–'} sub={prosessKontakt?.rolle || prosessKontakt?.telefon}/>
             </div>
           ) : (
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, paddingTop:4}}>
               <div style={{fontSize:13, color:C.gray500}}>Ingen prosess registrert på denne kunden ennå.</div>
-              <Button variant="secondary" size="sm" icon="plus" onClick={()=>setProsessModal({ mode:'new' })}>Legg til prosess</Button>
+              <Button variant="secondary" size="sm" icon="plus" onClick={()=>setProsessModal({ mode:'new' })}>Start ny prosess</Button>
             </div>
           )}
           {selectedProsess?.notat && (
@@ -214,7 +222,15 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
         <Card padding={0}>
           <div style={{padding:'18px 22px', borderBottom:`1px solid ${C.gray100}`, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <div style={{fontSize:15, fontWeight:700, color:C.navy}}>Aktivitetstidslinje</div>
-            <div style={{fontSize:12, color:C.gray500}}>{activities.length} aktiviteter</div>
+            <div style={{display:'flex', alignItems:'center', gap:12}}>
+              {prosesser.length > 1 && selectedProsess && (
+                <label style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:C.gray700, cursor:'pointer'}}>
+                  <input type="checkbox" checked={kunProsessAkt} onChange={e=>setKunProsessAkt(e.target.checked)}/>
+                  Kun «{prosessNavn(selectedProsess, pakkeById)}»
+                </label>
+              )}
+              <div style={{fontSize:12, color:C.gray500}}>{activities.length} aktiviteter</div>
+            </div>
           </div>
           <Timeline activities={activities} onEdit={setEditingAct} onDelete={deleteActivity}/>
         </Card>
@@ -710,7 +726,7 @@ function ProsessBand({ prosesser, pakkeById, selectedId, totalVerdi, onSelect, o
           display:'inline-flex', alignItems:'center', gap:6, cursor:'pointer', fontFamily:'inherit',
           padding:'7px 12px', borderRadius:8, border:`1.5px dashed ${C.gray300}`, background:'transparent',
           color:C.blue, fontWeight:600, fontSize:13,
-        }}><Icon name="plus" size={13}/> Ny prosess</button>
+        }}><Icon name="plus" size={13}/> Start ny prosess</button>
       </div>
       {prosesser.length > 0 && (
         <div style={{textAlign:'right', flexShrink:0}}>
@@ -724,16 +740,20 @@ function ProsessBand({ prosesser, pakkeById, selectedId, totalVerdi, onSelect, o
 }
 
 function ProsessModal({ state, modal, onClose, onSave }) {
-  const { pakker } = state;
+  const { pakker, team } = state;
   const erNy = modal.mode === 'new';
+  const tomKontakt = { navn:'', rolle:'', epost:'', telefon:'' };
   const [form, setForm] = useState(erNy
-    ? { navn:'', pakkeId: pakker[0]?.id || '', verdi: pakker[0]?.pris || 0, status:'Lead', opprettet: TODAY, notat:'' }
-    : { ...modal.prosess });
+    ? { navn:'', pakkeId: pakker[0]?.id || '', verdi: pakker[0]?.pris || 0, status:'Lead', opprettet: TODAY, notat:'', ansvarligId: team[0]?.id || '', kontakt: { ...tomKontakt } }
+    : { ...modal.prosess, kontakt: { ...tomKontakt, ...(modal.prosess.kontakt || {}) } });
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const updK = (k, v) => setForm(f => ({ ...f, kontakt: { ...f.kontakt, [k]: v } }));
   const submit = (e) => { e?.preventDefault(); onSave(form); };
+  const sect = { fontSize:11, fontWeight:700, color:C.gray500, textTransform:'uppercase', letterSpacing:'.05em', marginTop:4 };
   return (
-    <Modal open={true} onClose={onClose} title={erNy ? 'Ny prosess' : 'Rediger prosess'} width={560}>
+    <Modal open={true} onClose={onClose} title={erNy ? 'Start ny prosess' : 'Rediger prosess'} width={600}>
       <form onSubmit={submit} style={{display:'flex', flexDirection:'column', gap:14}}>
+        <div style={{fontSize:13, color:C.gray500, lineHeight:1.5, marginTop:-4}}>Hver prosess er et eget salg med egen veileder og kontaktperson hos kunden. Prosesser på samme kunde er uavhengige av hverandre.</div>
         <Input label="Navn på prosessen (valgfritt)" value={form.navn} onChange={e=>upd('navn', e.target.value)}
           placeholder="F.eks. «Ekspertbistand — Per Hansen». Tomt = pakkenavn."/>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
@@ -748,10 +768,20 @@ function ProsessModal({ state, modal, onClose, onSave }) {
           <Select label="Framdriftsstatus" value={form.status} onChange={e=>upd('status', e.target.value)} options={STATUS_LISTE}/>
           <Input label="Opprettet" type="date" value={form.opprettet} onChange={e=>upd('opprettet', e.target.value)}/>
         </div>
+        <div style={sect}>Veileder</div>
+        <Select label="Ansvarlig veileder for denne prosessen" value={form.ansvarligId || ''} onChange={e=>upd('ansvarligId', e.target.value)}
+          options={team.map(t=>({value:t.id, label:t.navn}))}/>
+        <div style={sect}>Kontaktperson hos kunden (valgfritt — tomt = kundens primærkontakt)</div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+          <Input label="Navn" value={form.kontakt.navn} onChange={e=>updK('navn', e.target.value)}/>
+          <Input label="Rolle" value={form.kontakt.rolle} onChange={e=>updK('rolle', e.target.value)}/>
+          <Input label="E-post" type="email" value={form.kontakt.epost} onChange={e=>updK('epost', e.target.value)}/>
+          <Input label="Telefon" value={form.kontakt.telefon} onChange={e=>updK('telefon', e.target.value)}/>
+        </div>
         <Textarea label="Notat (valgfritt)" value={form.notat} onChange={e=>upd('notat', e.target.value)} rows={2}/>
         <div style={{display:'flex', justifyContent:'flex-end', gap:10, marginTop:6}}>
           <Button variant="secondary" type="button" onClick={onClose}>Avbryt</Button>
-          <Button variant="primary" type="submit">{erNy ? 'Legg til prosess' : 'Lagre endringer'}</Button>
+          <Button variant="primary" type="submit">{erNy ? 'Start prosess' : 'Lagre endringer'}</Button>
         </div>
       </form>
     </Modal>

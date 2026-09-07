@@ -346,10 +346,12 @@ function inntektTotal(kunder) {
   return kunder.reduce((s, k) => s + kundeVunnetVerdi(kundeProsesser(k)), 0);
 }
 
-// Inntekt per ansatt: vunne + ferdigstilte prosesser hvor ansvarligId matcher
+// Inntekt per ansatt: vunne + ferdigstilte prosesser der veilederen er ansvarlig.
+// Prosessens egen ansvarligId teller først; ellers kundens ansvarlige.
 function inntektForAnsatt(kunder, teamId) {
-  return kunder.filter(k => k.ansvarligId === teamId)
-    .reduce((s, k) => s + kundeVunnetVerdi(kundeProsesser(k)), 0);
+  return kunder.reduce((s, k) => s + kundeProsesser(k)
+    .filter(p => (p.ansvarligId || k.ansvarligId) === teamId && (p.status === 'Vunnet' || p.status === 'Ferdigstilt'))
+    .reduce((a, p) => a + (Number(p.verdi) || 0), 0), 0);
 }
 
 // Total budsjett (sum av alle ansatte sine budsjett)
