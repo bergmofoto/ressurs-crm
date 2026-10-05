@@ -237,7 +237,8 @@ function Kundeprofil({ state, setState, navigate, kundeId }) {
 
         <div style={{display:'flex', flexDirection:'column', gap:20}}>
           {/* Next planned activity */}
-          <NestePlanlagt kunde={kunde} updateKunde={updateKunde} addActivity={addActivity}/>
+          <NestePlanlagt kunde={kunde} updateKunde={updateKunde} addActivity={addActivity}
+            team={team} teamById={teamById} defaultAnsvarligId={prosessAnsv?.id || kunde.ansvarligId}/>
           {/* New activity form */}
           <NyAktivitetSkjema team={team} kunde={kunde} onAdd={addActivity}
             prosesser={prosesser} selectedProsessId={selectedProsess?.id} pakkeById={pakkeById}/>
@@ -497,17 +498,19 @@ function RedigerAktivitetModal({ team, aktivitet, onClose, onSave }) {
   );
 }
 
-function NestePlanlagt({ kunde, updateKunde, addActivity }) {
+function NestePlanlagt({ kunde, updateKunde, addActivity, team = [], teamById = {}, defaultAnsvarligId }) {
   const ns = kunde.nesteAktivitet;
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(ns || { dato: TODAY, type: 'telefon', beskrivelse: '' });
+  const tomPlan = () => ({ dato: TODAY, type: 'telefon', beskrivelse: '', ansvarligId: defaultAnsvarligId || team[0]?.id || '' });
+  const [form, setForm] = useState(ns ? { ...ns, ansvarligId: ns.ansvarligId || kunde.ansvarligId || '' } : tomPlan());
+  const planAnsv = ns ? teamById[ns.ansvarligId || kunde.ansvarligId] : null;
 
   if (!ns && !editing) {
     return (
       <Card>
         <div style={{fontSize:11, fontWeight:700, color:C.gray500, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8}}>Neste planlagte aktivitet</div>
         <div style={{fontSize:13, color:C.gray400, marginBottom:12}}>Ingen planlagt aktivitet.</div>
-        <Button variant="secondary" size="sm" icon="plus" onClick={()=>setEditing(true)}>Planlegg aktivitet</Button>
+        <Button variant="secondary" size="sm" icon="plus" onClick={()=>{ setForm(tomPlan()); setEditing(true); }}>Planlegg aktivitet</Button>
       </Card>
     );
   }
@@ -520,9 +523,11 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
           <Input label="Dato" type="date" value={form.dato} onChange={e=>setForm({...form, dato:e.target.value})}/>
           <Select label="Type" value={form.type} onChange={e=>setForm({...form, type:e.target.value})}
             options={Object.entries(AKTIVITETSTYPER).filter(([k])=>k!=='lead-mottatt').map(([k,v])=>({value:k, label:v.label}))}/>
+          <Select label="Ansvarlig veileder" value={form.ansvarligId || ''} onChange={e=>setForm({...form, ansvarligId:e.target.value})}
+            options={team.map(t=>({value:t.id, label:t.navn}))}/>
           <Textarea label="Beskrivelse" value={form.beskrivelse} onChange={e=>setForm({...form, beskrivelse:e.target.value})} rows={3}/>
           <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
-            <Button variant="secondary" size="sm" onClick={()=>{setEditing(false); setForm(ns||{dato:TODAY,type:'telefon',beskrivelse:''});}}>Avbryt</Button>
+            <Button variant="secondary" size="sm" onClick={()=>{setEditing(false); setForm(ns ? { ...ns, ansvarligId: ns.ansvarligId || kunde.ansvarligId || '' } : tomPlan());}}>Avbryt</Button>
             <Button variant="primary" size="sm" onClick={()=>{updateKunde({nesteAktivitet:form}); setEditing(false);}}>Lagre</Button>
           </div>
         </div>
@@ -542,7 +547,7 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
       dato: TODAY,
       tittel: ns.beskrivelse || meta.label,
       notat: 'Markert som fullført fra planlagt aktivitet.',
-      loggetAv: 'Du',
+      loggetAv: planAnsv?.navn || 'Du',
     });
     updateKunde({ nesteAktivitet: null });
   };
@@ -563,6 +568,12 @@ function NestePlanlagt({ kunde, updateKunde, addActivity }) {
       </div>
       <div style={{padding:'16px 18px'}}>
         <div style={{fontSize:12, color:C.gray500, marginBottom:6}}>{meta.label} · {formatDateLong(ns.dato)}</div>
+        {planAnsv && (
+          <div style={{display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.gray700, marginBottom:8}}>
+            <Avatar initialer={planAnsv.initialer} size={22} color={teamColor(planAnsv.id)}/>
+            <span>Ansvarlig: <strong style={{color:C.navy, fontWeight:600}}>{planAnsv.navn}</strong></span>
+          </div>
+        )}
         <div style={{fontSize:14, color:C.navy, lineHeight:1.5, marginBottom:14}}>{ns.beskrivelse}</div>
         <div style={{display:'flex', gap:8}}>
           <Button variant="success" size="sm" icon="check" onClick={markFullført} style={{flex:1, justifyContent:'center'}}>Marker fullført</Button>

@@ -46,7 +46,8 @@ function Oversikt({ state, navigate }) {
     .filter(k => k.nesteAktivitet?.dato)
     .map(k => {
       const diff = daysBetween(TODAY, k.nesteAktivitet.dato);
-      return { ...k, diff };
+      // Planlagt aktivitet kan ha egen veileder; ellers kundeansvarlig
+      return { ...k, diff, ansvarligId: k.nesteAktivitet.ansvarligId || k.ansvarligId };
     })
     .filter(k => k.diff <= 7)
     .sort((a,b) => a.diff - b.diff);
